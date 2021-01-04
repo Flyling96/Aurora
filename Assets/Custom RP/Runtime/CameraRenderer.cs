@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.Rendering;
 
-public class CameraRenderer
+partial class CameraRenderer
 {
     const string bufferName = "Render Camera";
 
@@ -22,6 +22,8 @@ public class CameraRenderer
         this.context = context;
         this.camera = camera;
 
+        PrepareBuffer();
+        PrepareForSceneWindow();
         if (!Cull())
         {
             return;
@@ -29,6 +31,8 @@ public class CameraRenderer
 
         Setup();
         DrawVisibleGeomertry();
+        DrawUnsupportedShaders();
+        DrawGizmos();
         Submit();
     }
 
@@ -46,26 +50,39 @@ public class CameraRenderer
     void Setup()
     {
         context.SetupCameraProperties(camera);
-        buffer.ClearRenderTarget(true, true, Color.clear);
+        CameraClearFlags flags = camera.clearFlags;
+        buffer.ClearRenderTarget(
+            flags <= CameraClearFlags.Depth,
+            flags == CameraClearFlags.Color,
+            flags == CameraClearFlags.Color ?
+        camera.backgroundColor.linear : Color.clear
+        );
         //BeginSample 与 EndSample成对使用，为了在FrameDebugger中有层级显示
-        buffer.BeginSample(bufferName);
+        buffer.BeginSample(SampleName);
         ExecuteBuffer();
     }
 
     void DrawVisibleGeomertry()
     {
-        var sortingSettings = new SortingSettings(camera);
+        var sortingSettings = new SortingSettings(camera) { criteria = SortingCriteria.CommonOpaque };
         var drawingSettings = new DrawingSettings(unlitShaderTagID,sortingSettings);
         var filteringSettings = new FilteringSettings(RenderQueueRange.all);
 
         context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings);
 
+        //先绘制不透明物体，没有深度值的像素会绘制天空盒，由于透明物体不写入深度所以透明物体需要在天空盒之后绘制
         context.DrawSkybox(camera);
+
+        sortingSettings.criteria = SortingCriteria.CommonTransparent;
+        drawingSettings.sortingSettings = sortingSettings;
+        filteringSettings.renderQueueRange = RenderQueueRange.transparent;
+
+        context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings);
     }
 
     void Submit()
     {
-        buffer.EndSample(bufferName);
+        buffer.EndSample(SampleName);
         ExecuteBuffer();
         context.Submit();
     }
