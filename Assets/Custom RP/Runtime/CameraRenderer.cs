@@ -13,11 +13,12 @@ partial class CameraRenderer
     ScriptableRenderContext context;
     CullingResults cullingResults;
 
-    static ShaderTagId unlitShaderTagID = new ShaderTagId("SRPDefaultUnlit");
+    static ShaderTagId unlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
+    static ShaderTagId litShaderTagId = new ShaderTagId("CustomLit");
 
     Camera camera;
 
-    public void Render(ScriptableRenderContext context, Camera camera)
+    public void Render(ScriptableRenderContext context, Camera camera, bool useDynamicBatching, bool useGPUInstancing)
     {
         this.context = context;
         this.camera = camera;
@@ -30,7 +31,7 @@ partial class CameraRenderer
         }
 
         Setup();
-        DrawVisibleGeomertry();
+        DrawVisibleGeomertry(useDynamicBatching, useGPUInstancing);
         DrawUnsupportedShaders();
         DrawGizmos();
         Submit();
@@ -62,10 +63,16 @@ partial class CameraRenderer
         ExecuteBuffer();
     }
 
-    void DrawVisibleGeomertry()
+    void DrawVisibleGeomertry(bool useDynamicBatching, bool useGPUInstancing)
     {
         var sortingSettings = new SortingSettings(camera) { criteria = SortingCriteria.CommonOpaque };
-        var drawingSettings = new DrawingSettings(unlitShaderTagID,sortingSettings);
+        var drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings)
+        {
+            enableDynamicBatching = useDynamicBatching,
+            enableInstancing = useGPUInstancing
+        };
+        drawingSettings.SetShaderPassName(1, litShaderTagId);
+
         var filteringSettings = new FilteringSettings(RenderQueueRange.all);
 
         context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings);
