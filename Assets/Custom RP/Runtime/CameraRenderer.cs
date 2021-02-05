@@ -20,31 +20,33 @@ partial class CameraRenderer
 
     Lighting lighting = new Lighting();
 
-    public void Render(ScriptableRenderContext context, Camera camera, bool useDynamicBatching, bool useGPUInstancing)
+    public void Render(ScriptableRenderContext context, Camera camera, 
+        bool useDynamicBatching, bool useGPUInstancing,ShadowSettings shadowSettings)
     {
         this.context = context;
         this.camera = camera;
 
         PrepareBuffer();
         PrepareForSceneWindow();
-        if (!Cull())
+        if (!Cull(shadowSettings.maxDistance))
         {
             return;
         }
 
         Setup();
-        lighting.Setup(context, cullingResults);
+        lighting.Setup(context, cullingResults, shadowSettings);
         DrawVisibleGeomertry(useDynamicBatching, useGPUInstancing);
         DrawUnsupportedShaders();
         DrawGizmos();
         Submit();
     }
 
-    bool Cull()
+    bool Cull(float maxShadowDistance)
     {
         ScriptableCullingParameters p;
         if(camera.TryGetCullingParameters(out p))
         {
+            p.shadowDistance = Mathf.Min(maxShadowDistance, camera.farClipPlane);
             cullingResults = context.Cull(ref p);
             return true;
         }
